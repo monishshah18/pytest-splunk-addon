@@ -647,18 +647,18 @@ def is_responsive_hec(request, splunk):
     Returns:
         bool: True if Splunk HEC is responsive. False otherwise
     """
+    session_headers = {
+        "Authorization": f'Splunk {request.config.getoption("splunk_hec_token")}'
+    }
     try:
         LOGGER.info(
             "Trying to connect Splunk HEC...  splunk=%s", json.dumps(splunk),
         )
-        session_headers = {
-            "Authorization": f'Splunk {request.config.getoption("splunk_hec_token")}'
-        }
         response = requests.get(
                 f'{request.config.getoption("splunk_hec_scheme")}://{splunk["forwarder_host"]}:{splunk["port_hec"]}/services/collector/health/1.0',
                 verify=False,
             )
-        LOGGER.debug("Status code: {}".format(response.status_code))
+        LOGGER.info("Status code: {}".format(response.status_code))
         if response.status_code in (200,201):
             LOGGER.info("Splunk HEC is responsive.")
             return True
@@ -668,7 +668,25 @@ def is_responsive_hec(request, splunk):
         LOGGER.warning(
             "Could not connect to Splunk HEC. Will try again. exception=%s", str(e),
         )
-        return False
+    try:
+        payload = {"event": "Hello World", "sourcetype": "hec"}
+        response_single_instance = requests.post(
+                f'{request.config.getoption("splunk_hec_scheme")}://{splunk["forwarder_host"]}:{splunk["port_hec"]}/services/collector/event',
+                verify=False,
+                json = payload,
+                headers=session_headers
+        )
+        LOGGER.info("Status Input code: {}".format(response_single_instance.status_code))
+        if response_single_instance.status_code in (200, 201):
+            LOGGER.info("Splunk HEC is responsive.")
+            return True
+        else:
+            return False
+    except Exception as e:
+        LOGGER.warning(
+            "Could not connect to Splunk HEC. Will try again. exception=%s", str(e),
+        )
+    return False
 
 
 def is_responsive(url):
